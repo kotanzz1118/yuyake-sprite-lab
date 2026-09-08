@@ -13,6 +13,8 @@ jobs:
         with: {python-version: '3.11'}
       - name: Probe bulk and single-symbol routes without outcome scoring
         run: python forecast_lab_provider_probe.py
+      - name: Discover official JPX downloadable routes without outcome scoring
+        run: python forecast_lab_jpx_link_probe.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
