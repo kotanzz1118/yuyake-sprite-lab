@@ -12,6 +12,27 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - run: pip install --disable-pip-version-check -q pandas numpy pyarrow yfinance
+      - name: Reconstruct frozen pre-extension code universe
+        run: |
+          python - <<'PY'
+          import base64,gzip
+          b=base64.b64decode(open('forecast_lab_frozen_union_varint_b64.txt').read().strip())
+          vals=[];cur=shift=prev=0
+          for by in b:
+              cur|=(by&127)<<shift
+              if by&128:
+                  shift+=7; continue
+              delta=cur//2 if cur%2==0 else -(cur//2)-1
+              prev+=delta; vals.append(prev); cur=shift=0
+          chars='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'; inv={i+1:c for i,c in enumerate(chars)}
+          def dec(n):
+              out=''
+              while n:
+                  n,r=divmod(n,37); out=inv[r]+out
+              return out
+          raw=('security_code\n'+'\n'.join(dec(n) for n in vals)+'\n').encode()
+          open('forecast_lab_frozen_union_codes_b64.txt','w').write(base64.b64encode(gzip.compress(raw,9)).decode())
+          PY
       - name: Acquire and evaluate frozen extension
         run: python forecast_lab_tail_v2_nearlive.py
       - uses: actions/upload-artifact@v4
@@ -19,4 +40,4 @@ jobs:
           name: forecast-lab-tail-v2-nearlive
           path: near_live/
           retention-days: 2
-# retrigger union-universe evaluator
+# retrigger lossless-universe evaluator
