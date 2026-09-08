@@ -1,45 +1,79 @@
-name: Forecast Lab TAIL_SPIKE_V2 near-live extension
+name: Forecast Lab TAIL_SPIKE_V2 sharded near-live extension
 on:
   push:
-    branches: [forecast-lab-deep-eval]
+    branches: [forecast-lab-tail-v2-sharded]
     paths: ['.github/workflows/forecast-lab-tail-v2-nearlive.yml']
 jobs:
-  evaluate:
+  acquire:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
-      - run: pip install --disable-pip-version-check -q pandas numpy pyarrow yfinance
-      - name: Reconstruct frozen pre-extension code universe
-        run: |
-          python - <<'PY'
-          import base64,gzip,hashlib
-          enc=''.join(open(f'forecast_lab_union_chunks/c{i}.txt').read().strip() for i in range(6))
-          assert hashlib.sha256(enc.encode()).hexdigest()=='316d958078d5cba9fb22f2ca6fe972ea8e506182da7e09d051a622a703bb1718'
-          b=base64.b64decode(enc); vals=[]; cur=shift=prev=0
-          for by in b:
-              cur|=(by&127)<<shift
-              if by&128: shift+=7; continue
-              delta=cur//2 if cur%2==0 else -(cur//2)-1
-              prev+=delta; vals.append(prev); cur=shift=0
-          assert len(vals)==4717 and min(vals)>0
-          chars='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'; inv={i+1:c for i,c in enumerate(chars)}
-          def dec(n):
-              out=''
-              while n>0:
-                  n,r=divmod(n,37); out=inv[r]+out
-              return out
-          raw=('security_code\n'+'\n'.join(dec(n) for n in vals)+'\n').encode()
-          assert hashlib.sha256(raw).hexdigest()=='30baf3a515967f49963a6162c2f766e99fc1a4ea9091c7ac5d1bfbb16dfca502'
-          open('forecast_lab_frozen_union_codes_b64.txt','w').write(base64.b64encode(gzip.compress(raw,9)).decode())
-          PY
-      - name: Acquire and evaluate frozen extension
-        run: python forecast_lab_tail_v2_nearlive.py
+      - run: pip install --disable-pip-version-check -q pandas numpy
+      - name: Acquire one frozen shard without outcome scoring
+        run: python forecast_lab_tail_v2_sharded.py acquire --output "near_live_raw/shard_${{ matrix.shard }}" --shard-id "${{ matrix.shard }}" --shard-count 64
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: forecast-lab-tail-v2-nearlive
-          path: near_live/
-          retention-days: 2
-# verified-chunk reconstruction
+          name: forecast-lab-tail-v2-raw-${{ matrix.shard }}
+          path: near_live_raw/shard_${{ matrix.shard }}/
+          retention-days: 3
+          if-no-files-found: error
+
+  quality:
+    needs: acquire
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      gate_pass: ${{ steps.gate.outputs.gate_pass }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install --disable-pip-version-check -q pandas numpy
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: forecast-lab-tail-v2-raw-*
+          path: downloaded_shards
+      - name: Run outcome-blind acquisition quality gate
+        id: gate
+        run: python forecast_lab_tail_v2_sharded.py quality --input downloaded_shards --output near_live_gate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forecast-lab-tail-v2-quality-gate
+          path: near_live_gate/
+          retention-days: 3
+          if-no-files-found: error
+
+  evaluate:
+    needs: quality
+    if: needs.quality.outputs.gate_pass == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install --disable-pip-version-check -q pandas numpy
+      - uses: actions/download-artifact@v4
+        with:
+          name: forecast-lab-tail-v2-quality-gate
+          path: near_live_gate
+      - name: Run the frozen evaluator once
+        run: python forecast_lab_tail_v2_sharded.py evaluate --input near_live_gate --output near_live_result
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forecast-lab-tail-v2-nearlive-result
+          path: near_live_result/
+          retention-days: 3
+          if-no-files-found: error
