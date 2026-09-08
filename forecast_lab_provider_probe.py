@@ -13,6 +13,7 @@ URLS = [
     "https://static.stooq.pl/db/h/d_jp_txt.zip",
     "https://stooq.com/q/d/l/?s=7203.jp&d1=20260501&d2=20260907&i=d",
 ]
+ZIP_MAGIC = bytes.fromhex("504b0304")
 
 
 def probe(url: str) -> dict[str, object]:
@@ -44,7 +45,7 @@ def probe(url: str) -> dict[str, object]:
             "bytes_read": len(body),
             "prefix_hex": body[:16].hex(),
             "sample_sha256": hashlib.sha256(body).hexdigest(),
-            "looks_like_zip": body.startswith(b"PK\\x03\\x04"),
+            "looks_like_zip": body.startswith(ZIP_MAGIC),
             "looks_like_csv": body.lstrip().startswith((b"Date", b"<TICKER>")),
             "elapsed_seconds": (datetime.now(timezone.utc) - started).total_seconds(),
             "error": None,
@@ -60,7 +61,7 @@ def probe(url: str) -> dict[str, object]:
             "bytes_read": len(body),
             "prefix_hex": body[:16].hex(),
             "sample_sha256": hashlib.sha256(body).hexdigest(),
-            "looks_like_zip": body.startswith(b"PK\\x03\\x04"),
+            "looks_like_zip": body.startswith(ZIP_MAGIC),
             "looks_like_csv": body.lstrip().startswith((b"Date", b"<TICKER>")),
             "elapsed_seconds": (datetime.now(timezone.utc) - started).total_seconds(),
             "error": f"HTTPError: {exc}",
@@ -86,7 +87,7 @@ def main() -> None:
         "probes": [probe(url) for url in URLS],
     }
     (output / "provider_probe.json").write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+        json.dumps(result, indent=2, sort_keys=True) + chr(10), encoding="utf-8"
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
