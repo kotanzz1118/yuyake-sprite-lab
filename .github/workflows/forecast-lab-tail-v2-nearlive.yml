@@ -22,3 +22,4 @@ jobs:
           name: forecast-lab-tail-v2-nearlive
           path: near_live/
           retention-days: 2
+# retrigger after evaluator commit
