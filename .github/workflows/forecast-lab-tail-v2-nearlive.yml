@@ -15,22 +15,24 @@ jobs:
       - name: Reconstruct frozen pre-extension code universe
         run: |
           python - <<'PY'
-          import base64,gzip
-          b=base64.b64decode(open('forecast_lab_frozen_union_varint_b64.txt').read().strip())
-          vals=[];cur=shift=prev=0
+          import base64,gzip,hashlib
+          enc=''.join(open(f'forecast_lab_union_chunks/c{i}.txt').read().strip() for i in range(6))
+          assert hashlib.sha256(enc.encode()).hexdigest()=='316d958078d5cba9fb22f2ca6fe972ea8e506182da7e09d051a622a703bb1718'
+          b=base64.b64decode(enc); vals=[]; cur=shift=prev=0
           for by in b:
               cur|=(by&127)<<shift
-              if by&128:
-                  shift+=7; continue
+              if by&128: shift+=7; continue
               delta=cur//2 if cur%2==0 else -(cur//2)-1
               prev+=delta; vals.append(prev); cur=shift=0
+          assert len(vals)==4717 and min(vals)>0
           chars='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'; inv={i+1:c for i,c in enumerate(chars)}
           def dec(n):
               out=''
-              while n:
+              while n>0:
                   n,r=divmod(n,37); out=inv[r]+out
               return out
           raw=('security_code\n'+'\n'.join(dec(n) for n in vals)+'\n').encode()
+          assert hashlib.sha256(raw).hexdigest()=='30baf3a515967f49963a6162c2f766e99fc1a4ea9091c7ac5d1bfbb16dfca502'
           open('forecast_lab_frozen_union_codes_b64.txt','w').write(base64.b64encode(gzip.compress(raw,9)).decode())
           PY
       - name: Acquire and evaluate frozen extension
@@ -40,4 +42,4 @@ jobs:
           name: forecast-lab-tail-v2-nearlive
           path: near_live/
           retention-days: 2
-# retrigger lossless-universe evaluator
+# verified-chunk reconstruction
