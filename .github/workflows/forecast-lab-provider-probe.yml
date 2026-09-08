@@ -1,0 +1,22 @@
+name: Forecast Lab outcome-blind provider route probe
+on:
+  push:
+    branches: [forecast-lab-tail-v2-sharded]
+    paths: ['.github/workflows/forecast-lab-provider-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Probe bulk and single-symbol routes without outcome scoring
+        run: python forecast_lab_provider_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forecast-lab-provider-probe
+          path: provider_probe/
+          retention-days: 3
+          if-no-files-found: error
