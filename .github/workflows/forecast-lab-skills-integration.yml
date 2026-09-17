@@ -2,7 +2,9 @@ name: Forecast Lab skills integration
 
 on:
   push:
-    branches: [forecast-lab-skills-integration-v1]
+    branches:
+      - forecast-lab-skills-integration-v1
+      - forecast-lab-m86-bridge-recovery
     paths:
       - 'forecast_lab_skills/**'
       - '.github/workflows/forecast-lab-skills-integration.yml'
